@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QByteArray>
+#include <cstring>
 
 #ifdef WIN32
 #include <WinSock2.h>
@@ -112,7 +113,7 @@ void MainWindow::update_ui_controls() {
 void MainWindow::on_voice_next_clicked()
 {
 	cur_voice++;
-	if (cur_voice >= voices.size()) {
+	if (cur_voice >= (int)voices.size()) {
 		cur_voice = 0;
 	}
 
@@ -364,7 +365,7 @@ void MainWindow::on_voice_coarse_frequency_mult_op4_valueChanged(int arg1)
 void MainWindow::on_write_song_clicked()
 {
 	// https://segaretro.org/SMPS/Headers
-
+	int i = 0;
 	QSettings settings;
 	QString def_path = settings.value("prev_save_path", QCoreApplication::applicationDirPath()).toString();
 
@@ -408,12 +409,12 @@ void MainWindow::on_write_song_clicked()
 	// Solve how much space pattern data requires
 	uint16_t patterns_length = 0;
 
-	for (int i = 0; i < fm_patterns.size(); i++) {
+	for (i = 0; i < (int)fm_patterns.size(); i++) {
 		qDebug() << "fm pattern " << i << " size: " << fm_patterns[i].size();
 		patterns_length += (uint16_t)fm_patterns[i].size();
 	}
 
-	for (int i = 0; i < psg_patterns.size(); i++) {
+	for (i = 0; i < (int)psg_patterns.size(); i++) {
 		qDebug() << "psg pattern " << i << " size: " << psg_patterns[i].size();
 		patterns_length += (uint16_t)psg_patterns[i].size();
 	}
@@ -447,24 +448,18 @@ void MainWindow::on_write_song_clicked()
 	// Number of PSG tracks
 	smps_header[3] = (uint8_t)psg_patterns.size();
 
-	/*
-	 * From sonicretro.org:
-	 * Dividing timing: in all drivers I analyzed (Sonic 1, Sonic 2, Sonic 3, Sonic & Knuckles, Sonic 3D Blast, Ristar, Outrunners)
-	 * this works by multiplying note duration by this value. This can lead to broken notes, as the final duration is stored in a
-	 * single byte; thus, the maximum note duration you can use without problems is $FF/dividing timing (round down, maximum of $7F).
-	 * Sonic 3 or K specific: a dividing timing of $00 multiplies the note duration by 256, making all notes have a duration of $00
-	 * and last for 256 frames.
-	 */
+	// From sonicretro.org:
+	// Dividing timing: in all drivers I analyzed (Sonic 1, Sonic 2, Sonic 3, Sonic & Knuckles, Sonic 3D Blast, Ristar, Outrunners)
+	// this works by multiplying note duration by this value. This can lead to broken notes, as the final duration is stored in a
+	// single byte; thus, the maximum note duration you can use without problems is $FF/dividing timing (round down, maximum of $7F).
+	// 	* Sonic 3 or K specific: a dividing timing of $00 multiplies the note duration by 256, making all notes have a duration of $00 and last for 256 frames.
 	smps_header[4] = (uint8_t)ui->song_dividing_timing->value();
 
-	/*
-	 * Main tempo modifier. From sonicretro.org:
-	 * Main tempo modifier. This works as follows: Sonic 1 specific: if main tempo is nn, the song runs for nn-1 frames and is delayed
-	 * by 1 frame. A main tempo of $01 runs for 0 frames and is delayed by 1 frame, hence is broken; a main tempo of $00 will overflow
-	 * and run for $FF frames and be delayed by 1 frame. Sonic 2 specific: a main tempo of nn runs on nn out of 256 frames, as evenly
-	 * spaced as possible. A main tempo of $00 does not run at all. Sonic 3 or K specific: a main tempo of nn runs on (256 - nn) out
-	 * of 256 frames, as evenly spaced as possible. All tempo values are valid.
-	 */
+	// Main tempo modifier. From sonicretro.org:
+	// This works as follows;
+	// 	* Sonic 1 specific: if main tempo is nn, the song runs for nn-1 frames and is delayed by 1 frame. A main tempo of $01 runs for 0 frames and is delayed by 1 frame, hence is broken; a main tempo of $00 will overflow and run for $FF frames and be delayed by 1 frame.
+	// 	* Sonic 2 specific: a main tempo of nn runs on nn out of 256 frames, as evenly spaced as possible. A main tempo of $00 does not run at all.
+	// 	* Sonic 3 or K specific: a main tempo of nn runs on (256 - nn) out of 256 frames, as evenly spaced as possible. All tempo values are valid.
 	smps_header[5] = (uint8_t)ui->song_tempo->value();
 
 	fout.write((char*)smps_header, smps_header_size);
@@ -520,15 +515,12 @@ void MainWindow::on_write_song_clicked()
 			break;
 		}
 
-		/*
-		 * Initial channel key displacement. From sonicretro.org
-		 * Initial channel key displacement (signed, ignored on DAC). This is added to the note before it is converted
-		 * to a frequency. Sonic 3 or K specific: In the alternate SMPS parsing mode, the channel key displacement is
-		 * added to the *frequency* instead.
-		 */
+		// From sonicretro.org:
+		// Initial channel key displacement (signed, ignored on DAC). This is added to the note before it is converted to a frequency.
+		// 	* Sonic 3 or K specific: In the alternate SMPS parsing mode, the channel key displacement is added to the *frequency* instead.
 		off_p[2] = key_disp;
 
-		// Initial track volume. 0 is max, 7F is total silence.
+		// Initial track volume. $00 is max, $7F is total silence.
 		off_p[3] = vol_att;
 	}
 
@@ -539,7 +531,7 @@ void MainWindow::on_write_song_clicked()
 	unsigned char* psg_headers = new unsigned char[6 * psg_patterns.size()];
 	memset(psg_headers, 0, psg_header_size * psg_patterns.size());
 
-	for (unsigned int i = 0; i < psg_patterns.size(); i++) {
+	for (unsigned int i = 0; i < (unsigned int)psg_patterns.size(); i++) {
 		qDebug() << "writing PSG channel " << i;
 		uint8_t* psg_ptr = (uint8_t*)&psg_headers[i * psg_header_size];
 		uint16_t* track_d_ptr = (uint16_t*)psg_ptr;
@@ -571,8 +563,8 @@ void MainWindow::on_write_song_clicked()
 			break;
 		}
 
-		// Initial channel key displacement. This is added to the note before it is
-		// converted to a frequency
+		// Initial channel key displacement.
+		// This is added to the note before it is converted to a frequency
 		psg_ptr[2] = key_disp;
 
 		// Initial track volume attenuation: $0 is max volume, $f is total silence
@@ -591,7 +583,7 @@ void MainWindow::on_write_song_clicked()
 	// Write pattern data
 	qint64 pattern_data_total_size = 0;
 
-	for (int i = 0; i < fm_patterns.size(); i++) {
+	for (i = 0; i < (int)fm_patterns.size(); i++) {
 		std::vector<uint8_t>& pattern = fm_patterns[i];
 
 		qint64 pat_size = 0;
@@ -605,7 +597,7 @@ void MainWindow::on_write_song_clicked()
 		pattern_data_total_size += pat_size;
 	}
 
-	for (int i = 0; i < psg_patterns.size(); i++) {
+	for (i = 0; i < (int)psg_patterns.size(); i++) {
 		std::vector<uint8_t>& pattern = psg_patterns[i];
 
 		qint64 pat_size = 0;
@@ -753,6 +745,7 @@ void MainWindow::on_write_song_clicked()
 
 void MainWindow::on_import_button_clicked()
 {
+	int i = 0, c = 0;
 	QSettings settings;
 	QString def_path = settings.value("prev_import_path", QCoreApplication::applicationDirPath()).toString();
 
@@ -819,7 +812,7 @@ void MainWindow::on_import_button_clicked()
 	std::vector<PatternHeader> pattern_headers;
 	int offset = 6;
 
-	for (int i = 0; i < num_of_fm_channels; i++) {
+	for (i = 0; i < num_of_fm_channels; i++) {
 		qDebug() << "reading FM channel " << i << " header";
 		PatternHeader pattern_header;
 		memset(&pattern_header, 0, sizeof(pattern_header));
@@ -894,7 +887,7 @@ void MainWindow::on_import_button_clicked()
 		offset += 4;
 	}
 
-	for (int i = 0; i < num_of_psg_channels; i++) {
+	for (i = 0; i < num_of_psg_channels; i++) {
 		qDebug() << "reading PSG channel " << i << " header";
 		PatternHeader pattern_header;
 		memset(&pattern_header, 0, sizeof(pattern_header));
@@ -949,7 +942,7 @@ void MainWindow::on_import_button_clicked()
 		}
 	);
 
-	for (int i = 0; i < (int)pattern_headers.size()-1; i++) {
+	for (i = 0; i < (int)pattern_headers.size()-1; i++) {
 		int pattern_size = (int)pattern_headers[i+1].pattern_offset - (int)pattern_headers[i].pattern_offset;
 		if (pattern_size < 0) {
 			qDebug() << "error: pattern with negative size: " << i << ": " << pattern_size;
@@ -982,7 +975,7 @@ void MainWindow::on_import_button_clicked()
 
 	pattern_headers[pattern_headers.size()-1].pattern_size = (uint16_t)final_pattern_size;
 
-	for (int i = 0; i < (int)pattern_headers.size(); i++) {
+	for (i = 0; i < (int)pattern_headers.size(); i++) {
 		QString chantype = pattern_headers[i].voice_type == SMPS_PSG ? "PSG" : "FM or DAC";
 		qDebug() << "pattern header " << i << " type: " << chantype << ", offset: "
 			<< pattern_headers[i].pattern_offset << " length: " << pattern_headers[i].pattern_size;
@@ -991,13 +984,13 @@ void MainWindow::on_import_button_clicked()
 	// read pattern data
 
 	qint64 pattern_data_read = 0;
-	for (int i = 0; i < (int)pattern_headers.size(); i++) {
+	for (i = 0; i < (int)pattern_headers.size(); i++) {
 		PatternHeader& p = pattern_headers[i];
 		qDebug() << "reading pattern " << i << " of size " << p.pattern_size;
 
 		QString pattern_text = "";
 
-		for (int c = 0; c < p.pattern_size; c++) {
+		for (c = 0; c < p.pattern_size; c++) {
 			uint8_t hex = rawbuf[p.pattern_offset + c];
 			pattern_text += byteToHex(hex);
 			pattern_text += " ";
@@ -1014,7 +1007,7 @@ void MainWindow::on_import_button_clicked()
 			case 4: target = ui->fm_channel_5; break;
 			case 5: target = ui->fm_channel_6; break;
 			default:
-				qDebug() << "Too large FM channel number to read: " << p.pattern_number;
+				qDebug() << "Invalid FM channel number: " << p.pattern_number;
 			}
 		} else {
 			switch (p.pattern_number) {
@@ -1022,7 +1015,7 @@ void MainWindow::on_import_button_clicked()
 			case 1: target = ui->psg_channel_2; break;
 			case 2: target = ui->psg_channel_3; break;
 			default:
-				qDebug() << "Too large PSG channel number to read: " << p.pattern_number;
+				qDebug() << "Invalid PSG channel number: " << p.pattern_number;
 			}
 		}
 
@@ -1071,7 +1064,7 @@ void MainWindow::on_import_button_clicked()
 
 	qDebug() << "Reading FM voice table from offset: " << fm_voice_array_ptr;
 
-	for (int i = 0; i < voices_to_read; i++) {
+	for (i = 0; i < voices_to_read; i++) {
 		voices.push_back(Smps_voice());
 
 		uint8_t* read_ptr = (uint8_t*)&rawbuf[fm_voice_array_ptr + (i*voice_size)];
@@ -1099,10 +1092,10 @@ void MainWindow::on_import_button_clicked()
 		int8_t op2_detune = 0;
 		int8_t op4_detune = 0;
 
-		std::memcpy(&op1_detune, &op1_detune_us, sizeof(uint8_t));
-		std::memcpy(&op3_detune, &op3_detune_us, sizeof(uint8_t));
-		std::memcpy(&op2_detune, &op2_detune_us, sizeof(uint8_t));
-		std::memcpy(&op4_detune, &op4_detune_us, sizeof(uint8_t));
+		std::memmove(&op1_detune, &op1_detune_us, sizeof(uint8_t));
+		std::memmove(&op3_detune, &op3_detune_us, sizeof(uint8_t));
+		std::memmove(&op2_detune, &op2_detune_us, sizeof(uint8_t));
+		std::memmove(&op4_detune, &op4_detune_us, sizeof(uint8_t));
 
 		// restore sign by ANDing all but two LSB to zero, then multiply
 		if (op1_detune_us >= 4) {
